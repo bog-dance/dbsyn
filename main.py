@@ -64,7 +64,7 @@ def mysql_get():
         dt_create = dt_create
         dt_change = dt_change
         mysql_rows.append(tuple((id, pub_header, pub_date, pub_url, pub_category_name_id, pub_importance_id, pub_na_pravah_reclami, pub_size, pub_znaki, pub_tiragh, pub_izd_id, pub_izd_number, pub_release_date, pub_page_number, pub_napoln_raiting, pub_znaki_header_fulltext, pub_user_id, pub_anons, pub_photo, pub_origin_izd_id, is_active, dt_create, dt_change)))
-        id_rows.append(tuple(( id, timestamp )))
+        id_rows.append(tuple(( id, timestamp)))
     db.close()
     return mysql_rows, id_rows
 
@@ -79,12 +79,16 @@ def postgres_put(sql_rows):
     conn.close()
     return None
 
-mysql_rows, id_rows = mysql_get()
-postgres_put(mysql_rows)
+def sqlite_put():
+    mysql_rows, id_rows = mysql_get()
+    postgres_put(mysql_rows)
+    
+    conn = sqlite3.connect('example.db')
+    c = conn.cursor()
+    #c.execute('CREATE TABLE mysql_rows (id integer, select_date date, imported integer default 0)')
+    c.executemany('INSERT INTO mysql_rows(id, select_date) VALUES (?,?)', id_rows)
+    conn.commit()
+    conn.close()
 
-conn = sqlite3.connect('example.db')
-c = conn.cursor()
-#c.execute('CREATE TABLE mysql_rows (id integer, select_date date)')
-c.executemany('INSERT INTO mysql_rows VALUES (?,?)', id_rows)
-c.execute('SELECT * FROM mysql_rows')
-print c.fetchall()
+
+sqlite_put()
