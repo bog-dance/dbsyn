@@ -5,6 +5,7 @@ import psycopg2
 import sqlite3
 import time
 
+timestamp = time.strftime("%Y-%m-%d_%H:%M:%S")
 
 fromdb_name = 'fromdb'
 fromdb_username = 'root'
@@ -16,7 +17,7 @@ todb_username = 'postgres'
 todb_password = 'qwerty'
 todb_host = '127.0.0.1'
 
-timestamp = time.strftime("%Y-%m-%d_%H:%M:%S")
+sqlite_dbname = 'example.db'
 
 
 def mysql_get():
@@ -80,15 +81,15 @@ def postgres_put(sql_rows):
     return None
 
 def sqlite_put():
-    mysql_rows, id_rows = mysql_get()
-    postgres_put(mysql_rows)
-    
-    conn = sqlite3.connect('example.db')
+    conn = sqlite3.connect(sqlite_dbname)
     c = conn.cursor()
     #c.execute('CREATE TABLE mysql_rows (id integer, select_date date, imported integer default 0)')
     c.executemany('INSERT INTO mysql_rows(id, select_date) VALUES (?,?)', id_rows)
     conn.commit()
     conn.close()
+    return None
 
 
+mysql_rows, id_rows = mysql_get()
+postgres_put(mysql_rows)
 sqlite_put()
