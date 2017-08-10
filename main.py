@@ -22,8 +22,8 @@ sqlite_dbname = 'example.db'
 postgres_sql = '''INSERT INTO t_pub_name (id, pub_header, pub_date, pub_url, pub_category_name_id, pub_importance_id, pub_na_pravah_reclami, pub_size, pub_znaki, pub_tiragh, pub_izd_id, pub_izd_number, pub_release_date, pub_page_number, pub_napoln_raiting, pub_znaki_header_fulltext, pub_user_id, pub_anons, pub_photo, pub_origin_izd_id, is_active, dt_create, dt_change) VALUES
     (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)'''
 
-mysql_rows_sql = "SELECT id, pub_name_id, pub_textarray_type_id, pub_text_length, pub_text, is_active, dt_create, dt_change from t_pub_textarray"
-mysql_ids_sql = "SELECT id from t_pub_textarray"
+mysql_rows_sql = "SELECT id, pub_name_id, pub_textarray_type_id, pub_text_length, pub_text, is_active, dt_create, dt_change from t_pub_textarray where id in (%s)"
+mysql_all_ids_sql = "SELECT id from t_pub_textarray"
 
 def mysql_connect():
     myconn = MySQLdb.connect(fromdb_host, fromdb_username, fromdb_password, fromdb_name)
@@ -32,16 +32,17 @@ def mysql_connect():
     return myconn, mycur
 
 def mysql_get_ids():
-    mysql_ids = []
-    mycur.execute(mysql_ids_sql)
+    mysql_all_ids = []
+    mycur.execute(mysql_all_ids_sql)
     data = mycur.fetchall()
     for row in data:
         mysql_id = row[0]
-        mysql_ids.append(int(mysql_id))
-    return mysql_ids
+        mysql_all_ids.append(int(mysql_id))
+    return mysql_all_ids
 
 def mysql_get_rows():
-    mycur.execute(mysql_rows_sql)
+    mysql_actual_ids = [2354154, 6254654, 6353333]
+    mycur.execute(mysql_rows_sql, mysql_actual_ids)
     data = mycur.fetchall()
     mysql_rows = []
     for row in data:
@@ -95,7 +96,6 @@ def postgres_put(row):
 
 
 def sqlite_put(mysql_id):
-    print mysql_id
     sql = 'INSERT INTO mysql_rows(mysql_id) VALUES (?)'
     conn = sqlite3.connect(sqlite_dbname)
     c = conn.cursor()
@@ -121,15 +121,19 @@ def sqlite_get_used_ids():
 
 ##################################
 
-used_ids = sqlite_get_used_ids()
-
+mysql_used_ids = sqlite_get_used_ids()
 myconn, mycur = mysql_connect()
 mysql_rows = mysql_get_rows()
-mysql_ids = mysql_get_ids()
+mysql_all_ids = mysql_get_ids()
+mysql_actual_ids = [x for x in mysql_all_ids if x not in mysql_used_ids]
 myconn.close()
 
-pscur, psconn = postgres_connect()
-for row in mysql_rows:
-    mysql_id = postgres_put(row)
-    sqlite_put(mysql_id)
-psconn.close()
+print 'mysql_used_ids: %s' %(mysql_used_ids)
+print 'mysql_all_ids: %s' %(mysql_all_ids)
+print 'mysql_actual_ids: %s' %(mysql_actual_ids)
+
+#pscur, psconn = postgres_connect()
+#for row in mysql_rows:
+#    mysql_id = postgres_put(row)
+#    sqlite_put(mysql_id)
+#psconn.close()
