@@ -15,6 +15,7 @@ todb_password = 'qwerty'
 todb_host = '127.0.0.1'
 
 sqlite_dbname = 'example.db'
+sqlite_tblname = 'mysql_rows'
 
 
 def mysql_connect():
@@ -97,7 +98,6 @@ def sqlite_put(mysql_id):
     sqlite_sql = 'INSERT INTO mysql_rows(mysql_id) VALUES (?)'
     conn = sqlite3.connect(sqlite_dbname)
     c = conn.cursor()
-#    c.execute('CREATE TABLE mysql_rows (id integer primary key autoincrement, mysql_id integer unique, timestamp timestamp default current_timestamp, imported_status integer default 0)')
     c.execute(sqlite_sql, mysql_id)
     conn.commit()
     conn.close()
@@ -105,24 +105,35 @@ def sqlite_put(mysql_id):
 
 def sqlite_get_used_ids():
     sqlite_sql = 'SELECT mysql_id FROM mysql_rows'
-    conn = sqlite3.connect(sqlite_dbname)
-    c = conn.cursor()
-    c.execute(sqlite_sql)
-    conn.commit()
-    select = c.fetchall()
-    conn.close()
     used_ids = []
-    for used_id in select:
-        used_ids.append(used_id[0])
+    try:
+        conn = sqlite3.connect(sqlite_dbname)
+        c = conn.cursor()
+        check_table = c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='mysql_rows';")
+        c.execute(sqlite_sql)
+        conn.commit()
+        select = c.fetchall()
+        conn.close()
+        for used_id in select:
+            used_ids.append(used_id[0])
+    except (Exception) as error:
+        print (error)
+        if 'no such table: mysql_rows' in error:
+            conn = sqlite3.connect(sqlite_dbname)
+            c = conn.cursor()
+            c.execute('CREATE TABLE mysql_rows (id integer primary key autoincrement, mysql_id integer unique, timestamp timestamp default current_timestamp)')
+            conn.close()
     return used_ids
 
-
-##################################
 
 mysql_used_ids = sqlite_get_used_ids()
 myconn, mycur = mysql_connect()
 mysql_all_ids = mysql_get_ids()
 mysql_actual_ids = [x for x in mysql_all_ids if x not in mysql_used_ids]
+
+print 'mysql_used_ids: %s' %(mysql_used_ids)
+print 'mysql_all_ids: %s' %(mysql_all_ids)
+print 'mysql_actual_ids: %s' %(mysql_actual_ids)
 
 if not mysql_actual_ids:
     print 'no new records!'
@@ -136,6 +147,3 @@ else:
         sqlite_put(mysql_id)
     psconn.close()
 
-print 'mysql_used_ids: %s' %(mysql_used_ids)
-print 'mysql_all_ids: %s' %(mysql_all_ids)
-print 'mysql_actual_ids: %s' %(mysql_actual_ids)
