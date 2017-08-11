@@ -146,4 +146,3 @@ else:
         mysql_id = postgres_put(row)
         sqlite_put(mysql_id)
     psconn.close()
-
