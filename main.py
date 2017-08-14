@@ -114,18 +114,26 @@ def postgres_put(row):
                       %s, %s, %s, %s, %s, %s, %s, %s,
                       %s, %s, %s, %s, %s, %s)"""
     mysql_id = (row[0], )
-    pscur.execute(postgres_sql, row)
-    psconn.commit()
+    try:
+        pscur.execute(postgres_sql, row)
+        psconn.commit()
+    except (Exception) as error:
+        report.write(error)
+        report.close()
     return mysql_id
 
 
 def sqlite_put(mysql_id):
     sqlite_sql = 'INSERT INTO mysql_rows(mysql_id) VALUES (?)'
-    conn = sqlite3.connect(sqlite_dbname)
-    c = conn.cursor()
-    c.execute(sqlite_sql, mysql_id)
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect(sqlite_dbname)
+        c = conn.cursor()
+        c.execute(sqlite_sql, mysql_id)
+        conn.commit()
+        conn.close()
+    except (Exception) as error:
+        report.write(error)
+        report.close()
     return mysql_id
 
 
