@@ -138,70 +138,70 @@ def sqlite_put(mysql_id, report):
         sqlitecur = conn.cursor()
         sqlitecur.execute(sqlite_sql, mysql_id)
         conn.commit()
-            conn.close()
-        except (Exception) as error:
-            report.write(error)
-            report.close()
-        return mysql_id
+        conn.close()
+    except (Exception) as error:
+       report.write(error)
+       report.close()
+       return mysql_id
 
 
-    def sqlite_get_used_ids():
-        """Get used rows ids from sqlite db"""
-        sqlite_sql = 'SELECT mysql_id FROM mysql_rows'
-        used_ids = []
-        try:
+def sqlite_get_used_ids():
+    """Get used rows ids from sqlite db"""
+    sqlite_sql = 'SELECT mysql_id FROM mysql_rows'
+    used_ids = []
+    try:
+        conn = sqlite3.connect(SQLITE_DBNAME)
+        sqlitecur = conn.cursor()
+        sqlitecur.execute("""SELECT name FROM sqlite_master WHERE type='table'
+                  AND name='mysql_rows'; """)
+        sqlitecur.execute(sqlite_sql)
+        conn.commit()
+        select = sqlitecur.fetchall()
+        conn.close()
+        for used_id in select:
+            used_ids.append(used_id[0])
+    except (Exception) as error:
+        if 'no such table: mysql_rows' in error:
             conn = sqlite3.connect(SQLITE_DBNAME)
             sqlitecur = conn.cursor()
-            sqlitecur.execute("""SELECT name FROM sqlite_master WHERE type='table'
-                      AND name='mysql_rows'; """)
-            sqlitecur.execute(sqlite_sql)
-            conn.commit()
-            select = sqlitecur.fetchall()
+            sqlitecur.execute("""CREATE TABLE mysql_rows (id integer primary key
+                         autoincrement, mysql_id integer unique, timestamp
+                         timestamp default current_timestamp)""")
             conn.close()
-            for used_id in select:
-                used_ids.append(used_id[0])
-        except (Exception) as error:
-            if 'no such table: mysql_rows' in error:
-                conn = sqlite3.connect(SQLITE_DBNAME)
-                sqlitecur = conn.cursor()
-                sqlitecur.execute("""CREATE TABLE mysql_rows (id integer primary key
-                             autoincrement, mysql_id integer unique, timestamp
-                             timestamp default current_timestamp)""")
-                conn.close()
-        return used_ids
+    return used_ids
 
 
-    def main():
-        """Main function"""
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        report = open(LOG_FILE, 'a')
+def main():
+    """Main function"""
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    report = open(LOG_FILE, 'a')
 
-        mysql_used_ids = sqlite_get_used_ids()
-        myconn, mycur = mysql_connect()
-        mysql_all_ids = mysql_get_ids(mycur)
-        mysql_actual_ids = [x for x in mysql_all_ids if x not in mysql_used_ids]
+    mysql_used_ids = sqlite_get_used_ids()
+    myconn, mycur = mysql_connect()
+    mysql_all_ids = mysql_get_ids(mycur)
+    mysql_actual_ids = [x for x in mysql_all_ids if x not in mysql_used_ids]
 
-        print 'mysql_used_ids: %s' % (mysql_used_ids)
-        print 'mysql_all_ids: %s' % (mysql_all_ids)
-        print 'mysql_actual_ids: %s' % (mysql_actual_ids)
-        report.write("%s\nmysql_used_ids: %s\nmysql_all_ids: %s\n"
-                     "mysql_actual_ids: %s\n\n" % (timestamp, mysql_used_ids,
-                                                   mysql_all_ids,
-                                                   mysql_actual_ids))
-        if not mysql_actual_ids:
-            print 'no new records!'
-        else:
-            mysql_rows = mysql_get_rows(mysql_actual_ids, mycur)
-            myconn.close()
+    print 'mysql_used_ids: %s' % (mysql_used_ids)
+    print 'mysql_all_ids: %s' % (mysql_all_ids)
+    print 'mysql_actual_ids: %s' % (mysql_actual_ids)
+    report.write("%s\nmysql_used_ids: %s\nmysql_all_ids: %s\n"
+                 "mysql_actual_ids: %s\n\n" % (timestamp, mysql_used_ids,
+                                               mysql_all_ids,
+                                               mysql_actual_ids))
+    if not mysql_actual_ids:
+        print 'no new records!'
+    else:
+        mysql_rows = mysql_get_rows(mysql_actual_ids, mycur)
+        myconn.close()
 
-            pscur, psconn = postgres_connect()
-            for row in mysql_rows:
-                mysql_id = postgres_put(pscur, psconn, row, report)
-                sqlite_put(mysql_id, report)
-            psconn.close()
-            report.close()
-            return None
+        pscur, psconn = postgres_connect()
+        for row in mysql_rows:
+            mysql_id = postgres_put(pscur, psconn, row, report)
+            sqlite_put(mysql_id, report)
+        psconn.close()
+        report.close()
+        return None
 
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
