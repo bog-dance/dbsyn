@@ -53,7 +53,7 @@ def mysql_get_rows(mysql_actual_ids, mycur):
     mycur.execute(mysql_sql, mysql_actual_ids)
     data = mycur.fetchall()
     mysql_rows = []
-#  Transformation query array elementss into mysql fields
+# Transformation query array elementss into mysql fields
     for row in data:
         mysql_id = row[0]
         pub_name_id = row[1]
@@ -63,7 +63,7 @@ def mysql_get_rows(mysql_actual_ids, mycur):
         is_active = row[5]
         dt_create = row[6]
         dt_change = row[7]
-# ################# Transformation mysql fields into postgres fields
+# Transformation mysql fields into postgres fields
         psql_id = mysql_id
         pub_header = pub_text
         pub_date = None
