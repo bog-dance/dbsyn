@@ -1,3 +1,4 @@
+"""Material's importer from mysql to postgres db"""
 # -*- coding: utf8 -*-
 
 import MySQLdb
@@ -5,31 +6,33 @@ import psycopg2
 import sqlite3
 import time
 
-fromdb_name = 'fromdb'
-fromdb_username = 'root'
-fromdb_password = 'mysql'
-fromdb_host = '127.0.0.1'
+FROMDB_NAME = 'fromdb'
+FROMDB_USERNAME = 'root'
+FROMDB_PASSWORD = 'mysql'
+FROMDB_HOST = '127.0.0.1'
 
-todb_name = 'todb'
-todb_username = 'postgres'
-todb_password = 'qwerty'
-todb_host = '127.0.0.1'
+TODB_NAME = 'todb'
+TODB_USERNAME = 'postgres'
+TODB_PASSWORD = 'qwerty'
+TODB_HOST = '127.0.0.1'
 
-sqlite_dbname = 'example.db'
-sqlite_tblname = 'mysql_rows'
+SQLITE_DBNAME = 'example.db'
+SQLITE_TBLNAME = 'mysql_rows'
 
-log_file = 'report'
+LOG_FILE = 'report'
 
 
 def mysql_connect():
-    myconn = MySQLdb.connect(fromdb_host, fromdb_username, fromdb_password,
-                             fromdb_name)
+    """Connect to mysql db"""
+    myconn = MySQLdb.connect(FROMDB_HOST, FROMDB_USERNAME, FROMDB_PASSWORD,
+                             FROMDB_NAME)
     myconn.set_character_set('utf8')
     mycur = myconn.cursor()
     return myconn, mycur
 
 
-def mysql_get_ids():
+def mysql_get_ids(mycur):
+    """Get all mysql id's"""
     mysql_all_ids_sql = "SELECT id from t_pub_textarray"
     mysql_all_ids = []
     mycur.execute(mysql_all_ids_sql)
@@ -40,7 +43,8 @@ def mysql_get_ids():
     return mysql_all_ids
 
 
-def mysql_get_rows():
+def mysql_get_rows(mysql_actual_ids, mycur):
+    """Get all mysql rows"""
     mysql_sql = """SELECT id, pub_name_id, pub_textarray_type_id,
                     pub_text_length, pub_text, is_active, dt_create, dt_change
                     from t_pub_textarray where id in (%s)"""
@@ -60,7 +64,7 @@ def mysql_get_rows():
         dt_create = row[6]
         dt_change = row[7]
 # ################# Transformation mysql fields into postgres fields
-        id = mysql_id
+        psql_id = mysql_id
         pub_header = pub_text
         pub_date = None
         pub_url = None
@@ -83,7 +87,7 @@ def mysql_get_rows():
         is_active = is_active
         dt_create = dt_create
         dt_change = dt_change
-        mysql_rows.append(tuple((id, pub_header, pub_date, pub_url,
+        mysql_rows.append(tuple((psql_id, pub_header, pub_date, pub_url,
                                  pub_category_name_id, pub_importance_id,
                                  pub_na_pravah_reclami, pub_size, pub_znaki,
                                  pub_tiragh, pub_izd_id, pub_izd_number,
@@ -96,14 +100,16 @@ def mysql_get_rows():
 
 
 def postgres_connect():
-    psconn = psycopg2.connect(database=todb_name, user=todb_username,
-                              password=todb_password, host=todb_host)
+    """Connect to postgres db"""
+    psconn = psycopg2.connect(database=TODB_NAME, user=TODB_USERNAME,
+                              password=TODB_PASSWORD, host=TODB_HOST)
     pscur = psconn.cursor()
     return pscur, psconn
 
 
-def postgres_put(row):
-    postgres_sql = """INSERT INTO t_pub_name (id, pub_header, pub_date, pub_url, 
+def postgres_put(pscur, psconn, row, report):
+    """Insert into postgres db rows"""
+    postgres_sql = """INSERT INTO t_pub_name (id, pub_header, pub_date, pub_url,
                       pub_category_name_id, pub_importance_id,
                       pub_na_pravah_reclami, pub_size, pub_znaki, pub_tiragh,
                       pub_izd_id, pub_izd_number, pub_release_date,
@@ -118,74 +124,84 @@ def postgres_put(row):
         pscur.execute(postgres_sql, row)
         psconn.commit()
     except (Exception) as error:
+        print error
         report.write(error)
         report.close()
     return mysql_id
 
 
-def sqlite_put(mysql_id):
+def sqlite_put(mysql_id, report):
+    """Insert into ebedded sqlite db used ids"""
     sqlite_sql = 'INSERT INTO mysql_rows(mysql_id) VALUES (?)'
     try:
-        conn = sqlite3.connect(sqlite_dbname)
-        c = conn.cursor()
-        c.execute(sqlite_sql, mysql_id)
+        conn = sqlite3.connect(SQLITE_DBNAME)
+        sqlitecur = conn.cursor()
+        sqlitecur.execute(sqlite_sql, mysql_id)
         conn.commit()
-        conn.close()
-    except (Exception) as error:
-        report.write(error)
-        report.close()
-    return mysql_id
-
-
-def sqlite_get_used_ids():
-    sqlite_sql = 'SELECT mysql_id FROM mysql_rows'
-    used_ids = []
-    try:
-        conn = sqlite3.connect(sqlite_dbname)
-        c = conn.cursor()
-        c.execute("""SELECT name FROM sqlite_master WHERE type='table'
-                  AND name='mysql_rows'; """)
-        c.execute(sqlite_sql)
-        conn.commit()
-        select = c.fetchall()
-        conn.close()
-        for used_id in select:
-            used_ids.append(used_id[0])
-    except (Exception) as error:
-        print (error)
-        if 'no such table: mysql_rows' in error:
-            conn = sqlite3.connect(sqlite_dbname)
-            c = conn.cursor()
-            c.execute("""CREATE TABLE mysql_rows (id integer primary key 
-                         autoincrement, mysql_id integer unique, timestamp
-                         timestamp default current_timestamp)""")
             conn.close()
-    return used_ids
+        except (Exception) as error:
+            report.write(error)
+            report.close()
+        return mysql_id
 
-timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-report = open(log_file, 'a')
 
-mysql_used_ids = sqlite_get_used_ids()
-myconn, mycur = mysql_connect()
-mysql_all_ids = mysql_get_ids()
-mysql_actual_ids = [x for x in mysql_all_ids if x not in mysql_used_ids]
+    def sqlite_get_used_ids():
+        """Get used rows ids from sqlite db"""
+        sqlite_sql = 'SELECT mysql_id FROM mysql_rows'
+        used_ids = []
+        try:
+            conn = sqlite3.connect(SQLITE_DBNAME)
+            sqlitecur = conn.cursor()
+            sqlitecur.execute("""SELECT name FROM sqlite_master WHERE type='table'
+                      AND name='mysql_rows'; """)
+            sqlitecur.execute(sqlite_sql)
+            conn.commit()
+            select = sqlitecur.fetchall()
+            conn.close()
+            for used_id in select:
+                used_ids.append(used_id[0])
+        except (Exception) as error:
+            if 'no such table: mysql_rows' in error:
+                conn = sqlite3.connect(SQLITE_DBNAME)
+                sqlitecur = conn.cursor()
+                sqlitecur.execute("""CREATE TABLE mysql_rows (id integer primary key
+                             autoincrement, mysql_id integer unique, timestamp
+                             timestamp default current_timestamp)""")
+                conn.close()
+        return used_ids
 
-print 'mysql_used_ids: %s' % (mysql_used_ids)
-print 'mysql_all_ids: %s' % (mysql_all_ids)
-print 'mysql_actual_ids: %s' % (mysql_actual_ids)
 
-report.write("%s\nmysql_used_ids: %s\nmysql_all_ids: %s\nmysql_actual_ids: %s\n\n"
-             % (timestamp, mysql_used_ids, mysql_all_ids, mysql_actual_ids))
-report.close()
+    def main():
+        """Main function"""
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        report = open(LOG_FILE, 'a')
 
-if not mysql_actual_ids:
-    print 'no new records!'
-else:
-    mysql_rows = mysql_get_rows()
-    myconn.close()
+        mysql_used_ids = sqlite_get_used_ids()
+        myconn, mycur = mysql_connect()
+        mysql_all_ids = mysql_get_ids(mycur)
+        mysql_actual_ids = [x for x in mysql_all_ids if x not in mysql_used_ids]
 
-    pscur, psconn = postgres_connect()
-    for row in mysql_rows:
-        mysql_id = postgres_put(row)
-        sqlite_put(mysql_id)
-    psconn.close()
+        print 'mysql_used_ids: %s' % (mysql_used_ids)
+        print 'mysql_all_ids: %s' % (mysql_all_ids)
+        print 'mysql_actual_ids: %s' % (mysql_actual_ids)
+        report.write("%s\nmysql_used_ids: %s\nmysql_all_ids: %s\n"
+                     "mysql_actual_ids: %s\n\n" % (timestamp, mysql_used_ids,
+                                                   mysql_all_ids,
+                                                   mysql_actual_ids))
+        if not mysql_actual_ids:
+            print 'no new records!'
+        else:
+            mysql_rows = mysql_get_rows(mysql_actual_ids, mycur)
+            myconn.close()
+
+            pscur, psconn = postgres_connect()
+            for row in mysql_rows:
+                mysql_id = postgres_put(pscur, psconn, row, report)
+                sqlite_put(mysql_id, report)
+            psconn.close()
+            report.close()
+            return None
+
+
+    if __name__ == "__main__":
+        main()
